@@ -1,0 +1,17 @@
+{
+  "domain": "cyberiot_apollo",
+  "name": "Cyberiot Apollo",
+  "codeowners": ["@cyberiot"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "0.1.0",
+  "zeroconf": [
+    {
+      "type": "_http._tcp.local.",
+      "name": "econest-hems-*"
+    }
+  ]
+}
