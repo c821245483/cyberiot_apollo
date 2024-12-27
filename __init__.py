@@ -12,10 +12,10 @@ from . import cyberiot_intelligent
 # eg <cover.py> and <sensor.py>
 PLATFORMS = [Platform.SENSOR]
 
-type HubConfigEntry = ConfigEntry[cyberiot_intelligent.CyberiotApollo]
+type ApolloConfigEntry = ConfigEntry[cyberiot_intelligent.CyberiotApollo]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: HubConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: ApolloConfigEntry) -> bool:
     """Set up Hello World from a config entry."""
     # Store an instance of the "connecting" class that does the work of speaking
     # with your actual devices.

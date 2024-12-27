@@ -2,10 +2,7 @@
 import aiohttp
 import asyncio
 import logging
-import websockets
 import struct
-from homeassistant.helpers.event import async_track_state_change
-from homeassistant.helpers import entity_platform
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -15,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import HubConfigEntry
+from . import ApolloConfigEntry
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,7 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(
         hass: HomeAssistant,
-        config_entry: HubConfigEntry,
+        config_entry: ApolloConfigEntry,
         async_add_entities: AddEntitiesCallback) -> None:
     """设置传感器平台"""
     apollo = config_entry.runtime_data
@@ -36,7 +33,6 @@ async def async_setup_entry(
             if data_ctrl_res:
                 sensor_manager = WebSocketSensorManager(hass, async_add_entities, apollo, uuid, host)
                 hass.loop.create_task(sensor_manager.start())
-    # return True
 
 
 class WebSocketSensorManager:
@@ -72,17 +68,18 @@ class WebSocketSensorManager:
         """处理 WebSocket 消息"""
         # 解析完整数据
         analysis_device_data = self.analysis_data(data)
-        device_datas = {"main": analysis_device_data["sampleDataWsPayload"]["mainChData"],
-                        "sub": analysis_device_data["sampleDataWsPayload"]["subDevChData"]}
+        if analysis_device_data:
+            device_datas = {"main": analysis_device_data["sampleDataWsPayload"]["mainChData"],
+                            "sub": analysis_device_data["sampleDataWsPayload"]["subDevChData"]}
 
-        for device_type, device_data in device_datas.items():
-            if device_type == "main":
-                self.add_sensor(device_data, device_type)
-            else:
-                for ind, sub_data in enumerate(device_data):
-                    for ch_ind, ch_data in enumerate(sub_data["chDatas"]):
-                        sub_ch_name = device_type + "_" + str(ind) + "-channel_" + str(ch_ind + 1)
-                        self.add_sensor(ch_data, sub_ch_name)
+            for device_type, device_data in device_datas.items():
+                if device_type == "main":
+                    self.add_sensor(device_data, device_type)
+                else:
+                    for ind, sub_data in enumerate(device_data):
+                        for ch_ind, ch_data in enumerate(sub_data["chDatas"]):
+                            sub_ch_name = device_type + "_" + str(ind) + "-channel_" + str(ch_ind + 1)
+                            self.add_sensor(ch_data, sub_ch_name)
 
     def add_sensor(self, data, device_type):
         for key, value in data.items():
@@ -102,7 +99,8 @@ class WebSocketSensorManager:
         apollo_ws_pkg_head_size = struct.calcsize(apollo_ws_pkg_head_format)
         version, crc, type_, length = struct.unpack_from(apollo_ws_pkg_head_format, data, offset)
         offset += apollo_ws_pkg_head_size
-
+        if type_ != 2:
+            return None
         apolloWsPkgHead = {
             "version": version,
             "crc": crc,
@@ -169,42 +167,7 @@ class WebSocketSensorManager:
         return res
 
 
-class SensorBase(Entity):
-    """BaseSensor."""
-
-    should_poll = False
-
-    def __init__(self, apollo):
-        """Initialize the sensor."""
-        self._apollo = apollo
-
-    @property
-    def device_info(self):
-        """Return information to link this entity with the correct device."""
-        return {"identifiers": {(DOMAIN, self._apollo.roller_id)},
-                "name": self._apollo.name,
-                "manufacturer": "Cyberiot",
-                "model": "Apollo Device"}
-
-    # This property is important to let HA know if this entity is online or not.
-    # If an entity is offline (return False), the UI will refelect this.
-    @property
-    def available(self) -> bool:
-        """Return True if roller and hub is available."""
-        return self._apollo.online
-
-    async def async_added_to_hass(self):
-        """Run when this Entity has been added to HA."""
-        # Sensors should also register callbacks to HA when their state changes
-        self._apollo.register_callback(self.async_write_ha_state)
-
-    async def async_will_remove_from_hass(self):
-        """Entity being removed from hass."""
-        # The opposite of async_added_to_hass. Remove any registered call backs here.
-        self._apollo.remove_callback(self.async_write_ha_state)
-
-
-class BatterySensor(SensorBase):
+class BatterySensor(Entity):
     """Representation of a Sensor."""
 
     device_class = SensorDeviceClass.POWER
@@ -213,19 +176,18 @@ class BatterySensor(SensorBase):
 
     def __init__(self, apollo, sensor_name):
         """Initialize the sensor."""
-        super().__init__(apollo)
-
-        # As per the sensor, this must be a unique value within this domain. This is done
-        # by using the device ID, and appending "_battery"
-        # self._attr_unique_id = f"{self._apollo.roller_id}_battery"
-        # self._attr_unique_id = f"{self._apollo.roller_id}"
-
-        # The name of the entity
-        # self._attr_name = f"{self._apollo.name} Battery"
+        # super().__init__(apollo)
         self._sensor_name = sensor_name
-
-        # self._state = random.randint(0, 100)
         self._state = None
+        self._apollo = apollo
+
+    @property
+    def device_info(self):
+        """Return information to link this entity with the correct device."""
+        return {"identifiers": {(DOMAIN, self._apollo.serial_number_name)},
+                "name": self._apollo.serial_number_name,
+                "manufacturer": "Cyberiot",
+                "model": "Apollo Device"}
 
     @property
     def unique_id(self):

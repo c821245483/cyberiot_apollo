@@ -36,9 +36,8 @@ async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
     """
     if len(data["serial_number"]) < 3:
         raise InvalidHost
-    raise Exception(data)
     apollo = CyberiotApollo(hass, data["serial_number"])
-    result = await apollo.check_connection(data["host"])
+    result = await apollo.check_connection()
     if not result:
         raise CannotConnect
 
@@ -60,29 +59,18 @@ class ApolloFlowHandler(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 info = await validate_input(self.hass, user_input)
-
                 return self.async_create_entry(title=info["title"], data=user_input)
             except CannotConnect:
                 errors["base"] = "cannot_connect"
             except InvalidHost:
-                # The error string is set here, and should be translated.
-                # This example does not currently cover translations, see the
-                # comments on `DATA_SCHEMA` for further details.
-                # Set the error on the `host` field, not the entire form.
                 errors["host"] = "cannot_connect"
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
 
-        # If there is no user input or there were errors, show the form again, including any errors that were found with the input.
         return self.async_show_form(
             step_id="user", data_schema=DATA_SCHEMA, errors=errors
         )
-        # step = "user"
-        # if not user_input:
-        #     user_input = {}
-        # #     return self._show_form(step)
-        # return await self.async_validate_input_create_entry(user_input, step_id=step)
 
     async def async_step_zeroconf(
         self, discovery_info: zeroconf.ZeroconfServiceInfo
