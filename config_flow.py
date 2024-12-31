@@ -26,7 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 HTTP_SUFFIX = "._http._tcp.local."
 DEFAULT_PORT = 80
 
-DATA_SCHEMA = vol.Schema({("serial_number"): str})
+DATA_SCHEMA = vol.Schema({("serial_number"): str, ("host"): str})
 
 
 async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
@@ -34,9 +34,7 @@ async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
 
     Data has the keys from DATA_SCHEMA with values provided by the user.
     """
-    if len(data["serial_number"]) < 3:
-        raise InvalidHost
-    apollo = CyberiotApollo(hass, data["serial_number"])
+    apollo = CyberiotApollo(hass, data["serial_number"],  data["host"])
     result = await apollo.check_connection()
     if not result:
         raise CannotConnect
@@ -62,8 +60,6 @@ class ApolloFlowHandler(ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(title=info["title"], data=user_input)
             except CannotConnect:
                 errors["base"] = "cannot_connect"
-            except InvalidHost:
-                errors["host"] = "cannot_connect"
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
@@ -76,6 +72,9 @@ class ApolloFlowHandler(ConfigFlow, domain=DOMAIN):
         self, discovery_info: zeroconf.ZeroconfServiceInfo
     ) -> ConfigFlowResult:
         """Handle zeroconf discovery."""
+        if not discovery_info or not discovery_info.host or not discovery_info.name:
+            _LOGGER.error("Invalid Zeroconf discovery info: %s", discovery_info)
+            return self.async_abort(reason="invalid_discovery_info")
         host = discovery_info.host
         serial_number = discovery_info.name.removesuffix(HTTP_SUFFIX)
         return await self.async_step_confirm_discovery(host, serial_number)
@@ -131,17 +130,27 @@ class ApolloFlowHandler(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Link a config entry from discovery."""
-        step = "link"
         if not user_input:
-            pass
-            # return self._show_form(step)
-        # _LOGGER.debug("------------------discovered_conf:{}, user_input:{}".format(self.discovered_conf, user_input))
-        # user_input = {**self.discovered_conf, **user_input}
-        user_input = self.discovered_conf
-        return await self.async_validate_input_create_entry(user_input, step_id=step)
+            return self.async_show_form(
+                step_id="link",
+                # description_placeholders=self.discovered_conf,
+                data_schema=vol.Schema({
+                    vol.Required("confirm", default=True): bool,
+                })
+            )
+        # 如果用户取消确认
+        if not user_input.get("confirm"):
+            return self.async_abort(reason="user declined")
+        # 验证输入并创建配置条目
+        try:
+            user_input = self.discovered_conf
+            return await self.async_validate_input_create_entry(user_input)
+        except Exception as e:
+            _LOGGER.error("Failed to create entry: %s", e)
+            return self.async_abort(reason="unknown error")
 
     async def async_validate_input_create_entry(
-        self, user_input: dict[str, Any], step_id: str
+        self, user_input: dict[str, Any]
     ) -> ConfigFlowResult:
         """Process user input and create new or update existing config entry."""
         host = user_input[CONF_HOST]
@@ -151,14 +160,6 @@ class ApolloFlowHandler(ConfigFlow, domain=DOMAIN):
         if not port:
             port = DEFAULT_PORT
 
-        errors = {}
-        if errors:
-            return
-            # return self._show_form(step_id, user_input, errors)
-
-        # unique_id should be serial for services purpose
-        # existing_entry = await self.async_set_unique_id(serial, raise_on_progress=False)
-
         config_data = {
             CONF_HOST: host,
             CONF_PORT: port,
@@ -166,18 +167,10 @@ class ApolloFlowHandler(ConfigFlow, domain=DOMAIN):
             SERIAL_NUMBER: serial_number
         }
 
-        # if existing_entry:
-        #     reason = (
-        #         "reauth_successful" if self.reauth_conf else "reconfigure_successful"
-        #     )
-        #     return self.async_update_reload_and_abort(
-        #         existing_entry, data=config_data, reason=reason
-        #     )
-
         return self.async_create_entry(title=serial_number or host, data=config_data)
 
     @callback
-    def async_create_entry(  # type: ignore[override]
+    def async_create_entry(
         self,
         *,
         title: str,
@@ -202,6 +195,3 @@ class ApolloFlowHandler(ConfigFlow, domain=DOMAIN):
 class CannotConnect(exceptions.HomeAssistantError):
     """Error to indicate we cannot connect."""
 
-
-class InvalidHost(exceptions.HomeAssistantError):
-    """Error to indicate there is an invalid hostname."""

@@ -20,7 +20,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ApolloConfigEntry) -> bo
     # Store an instance of the "connecting" class that does the work of speaking
     # with your actual devices.
     # raise Exception("------{}".format(entry.data))
-    entry.runtime_data = cyberiot_intelligent.CyberiotApollo(hass, entry.data["serial_number"])
+    entry.runtime_data = cyberiot_intelligent.CyberiotApollo(hass, entry.data["serial_number"], entry.data["host"])
 
     # This creates each HA object for each platform your device requires.
     # It's done by calling the `async_setup_entry` function in each platform module.

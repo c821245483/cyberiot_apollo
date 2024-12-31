@@ -26,6 +26,7 @@ async def async_setup_entry(
     apollo = config_entry.runtime_data
     host = config_entry.data["host"]
     sensor_title = config_entry.title
+
     if "004623000015" in sensor_title:
         uuid = await apollo.register_uuid(host)
         if uuid:
@@ -50,19 +51,26 @@ class WebSocketSensorManager:
 
     async def start(self):
         """启动 WebSocket 客户端"""
-        # url = self.websocket_url.format(self.apollo.serial_number_name, self.uuid)
-        url = self.websocket_url.format(self.host, self.uuid)
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.ws_connect(url) as ws:
-                    _LOGGER.info("WebSocket connection established")
-                    async for msg in ws:
-                        if msg.type == aiohttp.WSMsgType.BINARY:
-                            await self.handle_message(msg.data)
-                        elif msg.type == aiohttp.WSMsgType.ERROR:
-                            _LOGGER.error("WebSocket error: %s", msg.data)
-        except Exception as e:
-            _LOGGER.error("WebSocket connection failed: %s", e)
+        if self.apollo.apollo_type == "serial_number":
+            url = self.websocket_url.format(self.apollo.serial_number_name, self.uuid)
+        elif self.apollo.apollo_type == "serial_number_local":
+            url = self.websocket_url.format(self.apollo.serial_number_name + ".local", self.uuid)
+        else:
+            url = self.websocket_url.format(self.host, self.uuid)
+        while True:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.ws_connect(url) as ws:
+                        _LOGGER.info("WebSocket connection established")
+                        async for msg in ws:
+                            if msg.type == aiohttp.WSMsgType.BINARY:
+                                await self.handle_message(msg.data)
+                            elif msg.type == aiohttp.WSMsgType.ERROR:
+                                _LOGGER.error("WebSocket error: %s", msg.data)
+            except Exception as e:
+                _LOGGER.error("WebSocket connection failed: %s", e)
+            # 等待一段时间后重试连接
+            await asyncio.sleep(10)
 
     async def handle_message(self, data):
         """处理 WebSocket 消息"""
@@ -86,7 +94,7 @@ class WebSocketSensorManager:
             sensor_name = f"{device_type}-{key}"
             if sensor_name not in self.sensors:
                 # 如果尚未创建对应的传感器，则创建
-                new_sensor = BatterySensor(self.apollo, sensor_name)
+                new_sensor = ApolloSensor(self.apollo, sensor_name)
                 self.sensors[sensor_name] = new_sensor
                 self.async_add_entities([new_sensor])
             # 更新传感器状态
@@ -167,7 +175,7 @@ class WebSocketSensorManager:
         return res
 
 
-class BatterySensor(Entity):
+class ApolloSensor(Entity):
     """Representation of a Sensor."""
 
     device_class = SensorDeviceClass.POWER
@@ -178,6 +186,7 @@ class BatterySensor(Entity):
         """Initialize the sensor."""
         # super().__init__(apollo)
         self._sensor_name = sensor_name
+        self._available = True  # 初始状态为可用
         self._state = None
         self._apollo = apollo
 
@@ -211,3 +220,8 @@ class BatterySensor(Entity):
         #     return
         self._state = value
         self.async_write_ha_state()
+
+    @property
+    def available(self):
+        """Return True if the device is online."""
+        return self._available

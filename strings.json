@@ -3,7 +3,13 @@
     "step": {
       "user": {
         "data": {
-          "serial_number": "[%key:common::config_flow::data::serial_number%]"
+          "serial_number": "[%key:common::config_flow::data::serial_number%]",
+          "host": "[%key:common::config_flow::data::host%]"
+        }
+      },
+      "link": {
+        "data": {
+          "confirm": "Please confirm to continue."
         }
       }
     },
