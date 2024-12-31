@@ -13,5 +13,6 @@
       "type": "_http._tcp.local.",
       "name": "econest-hems-*"
     }
-  ]
+  ],
+  "brand": "cyberiot_apollo"
 }

@@ -34,12 +34,17 @@ async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
 
     Data has the keys from DATA_SCHEMA with values provided by the user.
     """
-    apollo = CyberiotApollo(hass, data["serial_number"],  data["host"])
+    serial_number = data["serial_number"]
+    if "econest-hems-" in serial_number:
+        serial_number_name = serial_number
+    else:
+        serial_number_name = "econest-hems-" + serial_number
+    apollo = CyberiotApollo(hass, serial_number_name,  data["host"])
     result = await apollo.check_connection()
     if not result:
         raise CannotConnect
 
-    return {"title": data["serial_number"]}
+    return {"title": serial_number_name}
 
 
 class ApolloFlowHandler(ConfigFlow, domain=DOMAIN):

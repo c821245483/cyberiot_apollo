@@ -25,15 +25,14 @@ async def async_setup_entry(
     """设置传感器平台"""
     apollo = config_entry.runtime_data
     host = config_entry.data["host"]
-    sensor_title = config_entry.title
-
-    if "004623000015" in sensor_title:
-        uuid = await apollo.register_uuid(host)
-        if uuid:
-            data_ctrl_res = await apollo.data_ctrl(uuid, host)
-            if data_ctrl_res:
-                sensor_manager = WebSocketSensorManager(hass, async_add_entities, apollo, uuid, host)
-                hass.loop.create_task(sensor_manager.start())
+    # sensor_title = config_entry.title
+    # if "004623000015" in sensor_title:
+    uuid = await apollo.register_uuid(host)
+    if uuid:
+        data_ctrl_res = await apollo.data_ctrl(uuid, host)
+        if data_ctrl_res:
+            sensor_manager = WebSocketSensorManager(hass, async_add_entities, apollo, uuid, host)
+            hass.loop.create_task(sensor_manager.start())
 
 
 class WebSocketSensorManager:
@@ -62,13 +61,37 @@ class WebSocketSensorManager:
                 async with aiohttp.ClientSession() as session:
                     async with session.ws_connect(url) as ws:
                         _LOGGER.info("WebSocket connection established")
-                        async for msg in ws:
-                            if msg.type == aiohttp.WSMsgType.BINARY:
-                                await self.handle_message(msg.data)
-                            elif msg.type == aiohttp.WSMsgType.ERROR:
-                                _LOGGER.error("WebSocket error: %s", msg.data)
-            except Exception as e:
+
+                        # 启动心跳任务
+                        async def send_heartbeat():
+                            while True:
+                                try:
+                                    await ws.ping()
+                                    _LOGGER.debug("Heartbeat sent")
+                                except Exception as e:
+                                    _LOGGER.error("Failed to send heartbeat: %s", e)
+                                    break
+                                await asyncio.sleep(10)  # 心跳间隔时间
+
+                        # 启动处理消息和心跳的并行任务
+                        heartbeat_task = asyncio.create_task(send_heartbeat())
+                        try:
+                            async for msg in ws:
+                                if msg.type == aiohttp.WSMsgType.BINARY:
+                                    await self.handle_message(msg.data)
+                                elif msg.type == aiohttp.WSMsgType.ERROR:
+                                    _LOGGER.error("WebSocket error: %s", msg.data)
+                        finally:
+                            heartbeat_task.cancel()
+            except aiohttp.ClientError as e:
                 _LOGGER.error("WebSocket connection failed: %s", e)
+            except asyncio.CancelledError:
+                _LOGGER.info("WebSocket connection canceled")
+                break
+            except Exception as e:
+                _LOGGER.error("Unexpected error: %s", e)
+
+            _LOGGER.info("Attempting to reconnect in 10 seconds...")
             # 等待一段时间后重试连接
             await asyncio.sleep(10)
 
