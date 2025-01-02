@@ -1,9 +1,6 @@
 """A demonstration 'hub' that connects several devices."""
 from __future__ import annotations
-import asyncio
-import random
 import json
-import requests
 import aiohttp
 
 from homeassistant.core import HomeAssistant
@@ -23,6 +20,7 @@ class CyberiotApollo:
         self.main_info_url = "http://{}/system-info"
 
     async def register_uuid(self, host):
+        """Register a UUID."""
         data = {"user": self.serial_number,
                 "password": "cyber2019"}
         json_data = json.dumps(data)
@@ -54,6 +52,7 @@ class CyberiotApollo:
         return res
 
     async def sync_data(self, device_uuid, host):
+        """Sampling data synchronization settings"""
         data = {"uuid": device_uuid,
                 "timestampFrom": 0,
                 "timestampTo": 0}
@@ -81,6 +80,7 @@ class CyberiotApollo:
         return res
 
     async def data_ctrl(self, device_uuid, host):
+        """Data transmission control"""
         data = {"uuid": device_uuid,
                 "rtdataEnable": 1,
                 "syncEnable": 0,
@@ -109,7 +109,7 @@ class CyberiotApollo:
         return res
 
     async def check_connection(self) -> bool:
-        """Test connectivity to the Dummy hub is OK."""
+        """Test connection."""
         for ind in range(3):
             if ind == 0:
                 url = self.main_info_url.format(self.serial_number_name)

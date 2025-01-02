@@ -4,7 +4,7 @@
   "codeowners": ["@cyberiot"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "",
+  "documentation": "https://github.com/c821245483/cyberiot_apollo",
   "iot_class": "local_push",
   "requirements": [],
   "version": "0.1.0",
@@ -13,6 +13,5 @@
       "type": "_http._tcp.local.",
       "name": "econest-hems-*"
     }
-  ],
-  "brand": "cyberiot_apollo"
+  ]
 }

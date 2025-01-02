@@ -25,8 +25,6 @@ async def async_setup_entry(
     """设置传感器平台"""
     apollo = config_entry.runtime_data
     host = config_entry.data["host"]
-    # sensor_title = config_entry.title
-    # if "004623000015" in sensor_title:
     uuid = await apollo.register_uuid(host)
     if uuid:
         data_ctrl_res = await apollo.data_ctrl(uuid, host)
@@ -44,7 +42,7 @@ class WebSocketSensorManager:
         self.sensors = {}  # 保存已经创建的传感器
         self.apollo = apollo
         self.websocket_url = "ws://{}/ws/interface?uuid={}"
-        self.max_subdev_num = 3  # 假设最大子设备数量为10，你可以根据实际修改
+        # self.max_subdev_num = 3
         self.uuid = uuid
         self.host = host
 
@@ -97,7 +95,6 @@ class WebSocketSensorManager:
 
     async def handle_message(self, data):
         """处理 WebSocket 消息"""
-        # 解析完整数据
         analysis_device_data = self.analysis_data(data)
         if analysis_device_data:
             device_datas = {"main": analysis_device_data["sampleDataWsPayload"]["mainChData"],
@@ -113,6 +110,7 @@ class WebSocketSensorManager:
                             self.add_sensor(ch_data, sub_ch_name)
 
     def add_sensor(self, data, device_type):
+        """创建传感器"""
         for key, value in data.items():
             sensor_name = f"{device_type}-{key}"
             if sensor_name not in self.sensors:
@@ -124,6 +122,7 @@ class WebSocketSensorManager:
             self.sensors[sensor_name].update_state(value)
 
     def analysis_data(self, data):
+        """解析完整数据"""
         offset = 0  # 偏移量
         # 解析 apolloWsPkgHead
         apollo_ws_pkg_head_format = "<IIII"  # version, crc, type, length
@@ -209,7 +208,7 @@ class ApolloSensor(Entity):
         """Initialize the sensor."""
         # super().__init__(apollo)
         self._sensor_name = sensor_name
-        self._available = True  # 初始状态为可用
+        # self._available = True
         self._state = None
         self._apollo = apollo
 
@@ -244,7 +243,7 @@ class ApolloSensor(Entity):
         self._state = value
         self.async_write_ha_state()
 
-    @property
-    def available(self):
-        """Return True if the device is online."""
-        return self._available
+    # @property
+    # def available(self):
+    #     """Return True if the device is online."""
+        # return self._available
