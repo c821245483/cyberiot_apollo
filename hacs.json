@@ -1,0 +1,6 @@
+{
+    "name": "cyberiot_apollo",
+    "country": "CN",
+    "render_readme": true,
+    "domains": ["sensor"]
+}
